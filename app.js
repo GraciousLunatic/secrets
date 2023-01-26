@@ -3,7 +3,11 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+// const encrypt = require("mongoose-encryption");
+// const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
+
 
 
 const app = express();
@@ -27,10 +31,10 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-const encKey = process.env.SOME_32BYTE_BASE64_STRING;
-const sigKey = process.env.SOME_64BYTE_BASE64_STRING;
+// const encKey = process.env.SOME_32BYTE_BASE64_STRING;
+// const sigKey = process.env.SOME_64BYTE_BASE64_STRING;
 
-userSchema.plugin(encrypt,{encryptionKey: encKey, signingKey:sigKey, encryptedFields:["password"]});
+// userSchema.plugin(encrypt,{encryptionKey: encKey, signingKey:sigKey, encryptedFields:["password"]});
 
 // const secret = "P6bgw8SJc87m+RZFlWDmpeio0LizuXLfX9cTps4k2TI=";
 // userSchema.plugin(encrypt,{secret:secret, encryptedFields:["password"]});
@@ -50,22 +54,24 @@ app.get("/register",(req,res)=>{
 });
 
 app.post("/register",(req,res)=>{
-    const newUser = new User({
-        email:req.body.username,
-        password:req.body.password
-    })
-    User.findOne({email:req.body.username},(err,document)=>{
-        if(!err){
-            if(!document){
-                newUser.save(function(err){
-                    if(err){
-                        console.log(err)
-                    }else{
-                        res.render("secrets")
-                    }
-                });
+    bcrypt.hash(req.body.password, saltRounds, function(err,hash){
+        const newUser = new User({
+            email:req.body.username,
+            password: hash
+        });
+        User.findOne({email:req.body.username},(err,document)=>{
+            if(!err){
+                if(!document){
+                    newUser.save(function(err){
+                        if(err){
+                            console.log(err)
+                        }else{
+                            res.render("secrets")
+                        }
+                    });
+                }
             }
-        }
+        });
     });
 });
 
@@ -73,10 +79,11 @@ app.post("/login",(req,res)=>{
     User.findOne({email:req.body.username},(err,document)=>{
         if(!err){
             if(document){
-                if(document.password===req.body.password){
-                    console.log(req.body.username)
-                    res.render("secrets")
-                }
+                bcrypt.compare(req.body.password, document.password, function(err, result) {
+                    if(result ===true){
+                        res.render("secrets")
+                    }
+                });
             }
         }else{
             console.log(err)
